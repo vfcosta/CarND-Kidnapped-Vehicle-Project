@@ -12,12 +12,40 @@
 
 #include "particle_filter.h"
 
+using namespace std;
+
+// Engine for random distributions
+std::default_random_engine gen;
+
+// Add random gaussian noise to particle
+Particle addNoise(Particle p, double std[]) {
+	p.x = normal_distribution<double>(p.x, std[0])(gen);
+	p.y = normal_distribution<double>(p.y, std[1])(gen);
+	p.theta = normal_distribution<double>(p.theta, std[2])(gen);
+	return p;
+}
+
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// TODO: Set the number of particles. Initialize all particles to first position (based on estimates of 
 	//   x, y, theta and their uncertainties from GPS) and all weights to 1. 
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
+	num_particles = 100;
 
+	// initialize particles and weights
+	weights = vector<double>(num_particles);
+	particles = vector<Particle>(num_particles);
+	Particle gps;
+	gps.x = x;
+	gps.y = y;
+	gps.theta = theta;
+	for(int i=0; i<num_particles; i++) {
+		Particle particle = addNoise(gps, std);
+		particle.id = i;
+		particles[i] = particle;
+		weights[i] = 1;
+	}
+	is_initialized = true;
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], double velocity, double yaw_rate) {
@@ -25,7 +53,15 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	// NOTE: When adding noise you may find std::normal_distribution and std::default_random_engine useful.
 	//  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
-
+	double vy = velocity/yaw_rate;
+	double ydt = delta_t * yaw_rate;
+	for(int i=0; i<num_particles; i++) {
+		Particle p = particles[i];
+		p.x += vy * (sin(p.theta + ydt) - sin(p.theta));
+		p.y += vy * (cos(p.theta) - cos(p.theta + ydt));
+		p.theta += ydt;
+		particles[i] = addNoise(p, std_pos);
+	}
 }
 
 void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations) {
@@ -33,7 +69,17 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 	//   observed measurement to this particular landmark.
 	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
 	//   implement this method and use it as a helper during the updateWeights phase.
-
+	for(int i=0; i<observations.size(); i++) {
+		LandmarkObs observation = observations[i];
+		double min_dist = numeric_limits<double>::max();
+		for(int j=0; j<predicted.size(); j++) {
+			LandmarkObs prediction = predicted[i];
+			double distance = dist(observation.x, observation.y, prediction.x, prediction.y);
+			if (distance < min_dist) {
+				observation.id = prediction.id;
+			}
+		}	
+	}
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
