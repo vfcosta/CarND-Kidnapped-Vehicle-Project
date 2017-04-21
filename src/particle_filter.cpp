@@ -15,11 +15,12 @@
 using namespace std;
 
 // Engine for random distributions
-//std::default_random_engine gen;
+random_device rd;
+std::default_random_engine gen(rd());
 
 // Add random gaussian noise to particle
 Particle addNoise(Particle p, double std[]) {
-	std::default_random_engine gen;
+	//std::default_random_engine gen;
 	p.x = normal_distribution<double>(p.x, std[0])(gen);
 	p.y = normal_distribution<double>(p.y, std[1])(gen);
 	p.theta = normal_distribution<double>(p.theta, std[2])(gen);
@@ -56,10 +57,16 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
 	double vy = velocity/yaw_rate;
 	double ydt = delta_t * yaw_rate;
+	double vdt = delta_t * velocity;
 	for(int i=0; i<num_particles; i++) {
 		Particle p = particles[i];
-		p.x += vy * (sin(p.theta + ydt) - sin(p.theta));
-		p.y += vy * (cos(p.theta) - cos(p.theta + ydt));
+		if(fabs(yaw_rate) > 1e-5) {
+			p.x += vy * (sin(p.theta + ydt) - sin(p.theta));
+			p.y += vy * (cos(p.theta) - cos(p.theta + ydt));
+		} else {
+			p.x += vdt * cos(p.theta);
+			p.y += vdt * sin(p.theta);
+		}
 		p.theta += ydt;
 		particles[i] = addNoise(p, std_pos);
 	}
@@ -125,6 +132,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
 		if (predicted.size()==0) {
 			//cout << "no predictions" << endl;
+			p.weight = 1e-20;
+			weights[i] = p.weight;
+			particles[i] = p;
 			continue;
 		}
 
@@ -153,7 +163,7 @@ void ParticleFilter::resample() {
 	// NOTE: You may find std::discrete_distribution helpful here.
 	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
 
-		std::default_random_engine gen;
+		default_random_engine gen;
 		discrete_distribution<> dist(weights.begin(), weights.end());
 		std::vector<Particle> new_particles(particles.size());
 		for (int i=0; i<num_particles; i++) {
