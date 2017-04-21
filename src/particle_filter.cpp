@@ -14,13 +14,12 @@
 
 using namespace std;
 
-// Engine for random distributions
+// initialize engine for random distributions
 random_device rd;
 std::default_random_engine gen(rd());
 
 // Add random gaussian noise to particle
 Particle addNoise(Particle p, double std[]) {
-	//std::default_random_engine gen;
 	p.x = normal_distribution<double>(p.x, std[0])(gen);
 	p.y = normal_distribution<double>(p.y, std[1])(gen);
 	p.theta = normal_distribution<double>(p.theta, std[2])(gen);
@@ -109,12 +108,13 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		Particle p = particles[i];
 
 		// transform observations to map coordinate system
+		std::vector<LandmarkObs> observations_transformed;
 		for(int j=0; j<observations.size(); j++) {
 			LandmarkObs observation = observations[j];
 			LandmarkObs observation_transformed;
 			observation_transformed.x = observation.x * cos(p.theta) - observation.y * sin(p.theta) + p.x;
 			observation_transformed.y = observation.x * sin(p.theta) + observation.y * cos(p.theta) + p.y;
-			observations[j] = observation_transformed;
+			observations_transformed.push_back(observation_transformed);
 		}
 
 		// predicted map landmarks
@@ -139,13 +139,13 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		}
 
 		// associate obserations to predictions
-		dataAssociation(predicted, observations);
+		dataAssociation(predicted, observations_transformed);
 
 		p.weight = 1;
-		//cout << "SIZE O: " << observations.size() << endl;
+		//cout << "SIZE O: " << observations_transformed.size() << endl;
 		//cout << "SIZE P: " <<  predicted.size() << endl;
-		for(int n=0; n<observations.size(); n++) {
-			LandmarkObs observation = observations[n];
+		for(int n=0; n<observations_transformed.size(); n++) {
+			LandmarkObs observation = observations_transformed[n];
 			//cout << n << " OBS: " << observation.id << " " <<  observation.x << endl;
 			LandmarkObs prediction = predicted[observation.id];
 			double dx = observation.x - prediction.x;
@@ -163,7 +163,6 @@ void ParticleFilter::resample() {
 	// NOTE: You may find std::discrete_distribution helpful here.
 	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
 
-		default_random_engine gen;
 		discrete_distribution<> dist(weights.begin(), weights.end());
 		std::vector<Particle> new_particles(particles.size());
 		for (int i=0; i<num_particles; i++) {
